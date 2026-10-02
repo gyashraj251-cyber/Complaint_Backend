@@ -12,7 +12,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin")
-@CrossOrigin(origins = "http://localhost:5173", allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS})
+// Removed hardcoded @CrossOrigin to let WebConfig.java handle production Vercel domains
 public class AdminController {
 
     @Autowired
@@ -28,6 +28,7 @@ public class AdminController {
                 return ResponseEntity.status(401).body(Map.of("message", "Invalid email or password."));
             }
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.status(500).body(Map.of("message", "Internal server error: " + e.getMessage()));
         }
     }
@@ -38,7 +39,10 @@ public class AdminController {
             adminService.registerAdmin(request);
             return ResponseEntity.ok(Map.of("message", "OTP sent successfully to " + request.getEmail()));
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("message", e.getMessage()));
+            // Log full error stack trace to Render console for debugging SMTP issues
+            System.err.println("Admin Registration Error: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("message", "Registration failed: " + e.getMessage()));
         }
     }
 

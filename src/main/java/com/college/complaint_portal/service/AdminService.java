@@ -4,10 +4,12 @@ import com.college.complaint_portal.dto.AdminRegistrationRequest;
 import com.college.complaint_portal.dto.OtpVerificationRequest;
 import com.college.complaint_portal.entity.AdminUser;
 import com.college.complaint_portal.repository.AdminUserRepository;
+import com.resend.Resend;
+import com.resend.core.exception.ResendException;
+import com.resend.services.emails.model.CreateEmailOptions;
+import com.resend.services.emails.model.CreateEmailResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -20,10 +22,11 @@ public class AdminService {
     @Autowired
     private AdminUserRepository adminUserRepository;
 
-    @Autowired
-    private JavaMailSender mailSender;
+    // Resend API key injected from application.properties
+    @Value("${resend.api.key}")
+    private String resendApiKey;
 
-    // Master Secret Key for creating admin accounts (configured in application.properties or defaulted here)
+    // Master Secret Key for creating admin accounts
     @Value("${admin.creation.secret-key:COLLEGE_ADMIN_SECRET_2026}")
     private String masterSecretKey;
 
@@ -56,7 +59,7 @@ public class AdminService {
 
         adminUserRepository.save(admin);
 
-        // Step 5: Send OTP Email
+        // Step 5: Send OTP Email via Resend HTTPS API
         sendOtpEmail(request.getEmail(), otp);
     }
 
@@ -94,10 +97,22 @@ public class AdminService {
     }
 
     private void sendOtpEmail(String recipientEmail, String otp) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(recipientEmail);
-        message.setSubject("Admin Registration OTP Verification");
-        message.setText("Welcome to the Admin Panel.\n\nYour OTP for verification is: " + otp + "\n\nThis code will expire in 5 minutes.");
-        mailSender.send(message);
+        Resend resend = new Resend(resendApiKey);
+
+        CreateEmailOptions params = CreateEmailOptions.builder()
+                .from("Campus Portal <onboarding@resend.dev>") // Free default testing sender on Resend
+                .to(recipientEmail)
+                .subject("Admin Registration OTP Verification")
+                .html("<p>Welcome to the Admin Panel.</p><p>Your OTP for verification is: <strong>" + otp + "</strong></p><p>This code will expire in 5 minutes.</p>")
+                .build();
+
+        try {
+            CreateEmailResponse response = resend.emails().send(params);
+            System.out.println("OTP email dispatched successfully. Resend ID: " + response.getId());
+        } catch (ResendException e) {
+            System.err.println("Resend email delivery failed: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Failed to send OTP email: " + e.getMessage());
+        }
     }
 }
